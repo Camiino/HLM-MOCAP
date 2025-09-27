@@ -395,7 +395,8 @@ def plot_single(group: str, path: str, out_dir: str):
     ax_a.set_ylabel(f"a_t [{unit_out}/s²]")
     ax_v.grid(True, alpha=0.2)
     ax_a.grid(True, alpha=0.2)
-    ax_v.legend(); ax_a.legend()
+    ax_v.legend()
+    ax_a.legend()
     fig.tight_layout(rect=[0, 0, 1, 0.95])
 
     os.makedirs(out_dir, exist_ok=True)
