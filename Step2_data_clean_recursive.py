@@ -10,9 +10,9 @@ output_root = "Exports/Daten_Raw_Clean"
 # --- Determine base_markers based on file/folder name ---
 def determine_base_markers(path):
     lower = path.lower()
-    if any(k in lower for k in ["gewicht", "greifen", "präzision"]):
+    if any(k in lower for k in ["weight", "grasp", "precision"]):
         return [1, 2, 3, 4, 5]
-    elif any(k in lower for k in ["ptp", "ptp2", "ptp3", "sequentiell", "zickzack", "kreis"]):
+    elif any(k in lower for k in ["ptp", "ptp2", "ptp3", "sequential", "zickzack", "circle"]):
         return [1]
     else:
         print(f"⚠️  Unknown group for: {path} → defaulting to [1]")

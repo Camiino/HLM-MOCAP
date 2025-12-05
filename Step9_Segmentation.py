@@ -176,7 +176,7 @@ if not os.path.exists(AVERAGE_ROOT):
 files = [f for f in os.listdir(AVERAGE_ROOT) if f.endswith("_mean.csv")]
 
 for file in files:
-    # Capture experiment name including unicode letters (e.g., "präzision")
+    # Capture experiment name including unicode letters (e.g., "precision")
     match = re.search(r"(probant\d+)_([^_]+)_mean\.csv", file.lower())
     if not match:
         continue

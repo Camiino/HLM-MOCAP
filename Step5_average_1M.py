@@ -13,12 +13,12 @@ AXES = ("X", "Y", "Z")
 MARKERS = [1, 2, 3, 4, 5]
 NORMALIZE_START = True
 EXPERIMENTS = [
-    "kreis", "ptp", "ptp2", "ptp3", "zikzak", "sequentiell",
-    "präzision", "greifen", "gewicht"
+    "circle", "ptp", "ptp2", "ptp3", "zigzag", "sequential",
+    "precision", "grasp", "weight"
 ]
 
 # For these experiments we only use marker #3
-SINGLE_MARKER_EXPERIMENTS = {"präzision", "greifen", "gewicht"}
+SINGLE_MARKER_EXPERIMENTS = {"precision", "grasp", "weight"}
 SINGLE_MARKER_ID = 3
 
 # --- Utility Functions ---

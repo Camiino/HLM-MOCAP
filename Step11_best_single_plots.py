@@ -13,8 +13,8 @@ Step 11 — Best Single-Trial Plots (no averaging)
 
 Purpose:
 - Scan cleaned raw CSVs (Exports/Daten_Raw_Clean) and pick one "best" file per
-  task among: ptp, zikzak, gewicht, präzision. "Best" = least missing samples for the
-  marker used in analysis (marker 1 for ptp/zikzak, marker 3 for gewicht and präzision),
+  task among: ptp, zigzag, weight, precision. "Best" = least missing samples for the
+  marker used in analysis (marker 1 for ptp/zigzag, marker 3 for weight and precision),
   with strong penalty for leading/trailing gaps (extrapolation) and internal
   gaps (interpolation).
 - For each selected file, do a lightweight single-trial processing
@@ -45,18 +45,18 @@ DELIMITER = ";"
 GROUP_PATTERNS = {
     "ptp": ["_ptp", "ptp_", "-ptp", " ptp", "ptp", "ptp", os.sep + "ptp"],
     "ptp2": ["ptp2", "ptp-2", "ptp_2", "ptp 2", "ptpii"],
-    "präzision": ["präzision", "präzision_", "-präzision", " präzision", "präzision", "präzision", os.sep + "präzision"],
-    "zikzak": ["zikzak", "zickzack", "zik-zak"],
-    "gewicht": ["gewicht"],
+    "precision": ["precision", "precision_", "-precision", " precision", "precision", "precision", os.sep + "precision"],
+    "zigzag": ["zigzag", "zickzack", "zik-zak"],
+    "weight": ["weight"],
 }
 
 # Marker used per group for kinematics
 MARKER_OF_INTEREST = {
     "ptp": 1,
     "ptp2": 1,
-    "zikzak": 1,
-    "gewicht": 3,
-    "präzision": 3,
+    "zigzag": 1,
+    "weight": 3,
+    "precision": 3,
 }
 
 # Time base assumptions
@@ -463,7 +463,7 @@ def main():
             score_rows.append(r_out)
 
     if not selections:
-        print("No candidates found. Ensure Exports/Daten_Raw_Clean exists and file names contain ptp/zikzak/gewicht.")
+        print("No candidates found. Ensure Exports/Daten_Raw_Clean exists and file names contain ptp/zigzag/weight.")
         return
 
     # --- Process selections and plot ---

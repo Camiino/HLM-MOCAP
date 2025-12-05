@@ -9,8 +9,8 @@ INPUT_DIR = "Exports/Daten_Averaged_1M"
 OUTPUT_DIR = "Exports/Final_Averages_1M"
 DELIMITER = ";"
 EXPERIMENTS = [
-    "kreis", "ptp", "ptp2", "ptp3", "zikzak", "sequentiell",
-    "präzision", "greifen", "gewicht"
+    "circle", "ptp", "ptp2", "ptp3", "zigzag", "sequential",
+    "precision", "grasp", "weight"
 ]
 
 # --- Helper: interpolate each column to target length ---

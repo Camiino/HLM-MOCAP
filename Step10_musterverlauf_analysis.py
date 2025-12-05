@@ -21,7 +21,7 @@ SEARCH_ROOTS = [
     # add other roots if needed
 ]
 
-MUSTER_KREIS = os.path.join("AbweichungsReferenzen", "Musterverlauf_Kreis.csv")
+MUSTER_KREIS = os.path.join("AbweichungsReferenzen", "Musterverlauf_Circle.csv")
 MUSTER_ZZ = os.path.join("AbweichungsReferenzen", "Musterverlauf_ZickZack.csv")
 
 N_RESAMPLE = 200  # samples per path for comparison
@@ -208,10 +208,10 @@ def analyze_one(mean_csv: str, muster_csv: str) -> dict:
 
 def infer_task_from_path(path: str) -> str:
     p = str(path).lower()
-    if re.search(r"[\\/]kreis[\\/]", p):
-        return "kreis"
-    if re.search(r"[\\/]zikzak[\\/]", p):
-        return "zikzak"
+    if re.search(r"[\\/]circle[\\/]", p):
+        return "circle"
+    if re.search(r"[\\/]zigzag[\\/]", p):
+        return "zigzag"
     return "unknown"
 
 
@@ -221,7 +221,7 @@ def find_mean_files(search_roots: list[str]) -> list[str]:
         if not os.path.isdir(root):
             continue
         for fp in glob(os.path.join(root, "**", "mean.csv"), recursive=True):
-            if re.search(r"[\\/](kreis|zikzak)[\\/]", fp, flags=re.IGNORECASE):
+            if re.search(r"[\\/](circle|zigzag)[\\/]", fp, flags=re.IGNORECASE):
                 paths.append(fp)
     paths.sort()
     return paths
@@ -247,7 +247,7 @@ def cluster_from_relfile(relpath: str, task: str) -> str:
     # Drop last two segments (task, filename) if present
     if parts and parts[-1].lower() == "mean.csv":
         parts = parts[:-1]
-    if parts and parts[-1].lower() in ("kreis", "zikzak"):
+    if parts and parts[-1].lower() in ("circle", "zigzag"):
         parts = parts[:-1]
     # Join as cluster key
     cluster = "/".join(parts)
@@ -272,7 +272,7 @@ def run_analysis() -> pd.DataFrame:
     rows = []
     for fp in files:
         task = infer_task_from_path(fp)
-        muster = MUSTER_KREIS if task == "kreis" else MUSTER_ZZ if task == "zikzak" else None
+        muster = MUSTER_KREIS if task == "circle" else MUSTER_ZZ if task == "zigzag" else None
         if muster is None:
             print(f"[skip] Unknown task for {fp}")
             continue
@@ -316,17 +316,17 @@ def aggregate_results(df: pd.DataFrame):
     # Derive cluster key from file path
     df["cluster"] = [cluster_from_relfile(rel, task) for rel, task in zip(df["file"], df["task"])]
 
-    # Detailed table: one row per cluster with kreis/zikzak columns and combined mean
+    # Detailed table: one row per cluster with circle/zigzag columns and combined mean
     pivot = df.pivot_table(index="cluster", columns="task", values="nrmse_percent", aggfunc="mean")
     # Ensure columns exist
-    if "kreis" not in pivot.columns:
-        pivot["kreis"] = np.nan
-    if "zikzak" not in pivot.columns:
-        pivot["zikzak"] = np.nan
-    pivot = pivot[[c for c in ["kreis", "zikzak"] if c in pivot.columns]]
+    if "circle" not in pivot.columns:
+        pivot["circle"] = np.nan
+    if "zigzag" not in pivot.columns:
+        pivot["zigzag"] = np.nan
+    pivot = pivot[[c for c in ["circle", "zigzag"] if c in pivot.columns]]
     pivot = pivot.rename(columns={
-        "kreis": "kreis_nrmse_percent",
-        "zikzak": "zikzak_nrmse_percent",
+        "circle": "circle_nrmse_percent",
+        "zigzag": "zigzag_nrmse_percent",
     })
     pivot["combined_mean_nrmse_percent"] = pivot.mean(axis=1, skipna=True)
 
@@ -354,7 +354,7 @@ def aggregate_results(df: pd.DataFrame):
     # Write a concise TXT with totals
     with open(OUT_TOTAL_TXT, "w", encoding="utf-8") as f:
         f.write(f"TOTAL over clusters (mean of cluster means): {total_over_clusters:.3f}%\n")
-        f.write(f"TOTAL over all entries (mean across kreis+zikzak): {total_over_entries:.3f}%\n")
+        f.write(f"TOTAL over all entries (mean across circle+zigzag): {total_over_entries:.3f}%\n")
 
     print(f"Saved simple table to {OUT_SIMPLE}")
     print(f"Saved detailed table to {OUT_DETAILED}")
@@ -393,10 +393,10 @@ def _shorten_labels(labels: list[str], maxlen: int = 30) -> list[str]:
 
 
 def _plot_heatmap(pivot: pd.DataFrame, out_path: str):
-    # Expect columns: kreis_nrmse_percent, zikzak_nrmse_percent
+    # Expect columns: circle_nrmse_percent, zigzag_nrmse_percent
     if pivot.empty:
         return
-    cols = [c for c in ["kreis_nrmse_percent", "zikzak_nrmse_percent"] if c in pivot.columns]
+    cols = [c for c in ["circle_nrmse_percent", "zigzag_nrmse_percent"] if c in pivot.columns]
     if not cols:
         return
     M = pivot[cols].to_numpy()
@@ -421,7 +421,7 @@ def _plot_boxplot_by_task(df: pd.DataFrame, out_path: str):
     d = df.dropna(subset=["task", "nrmse_percent"]).copy()
     if d.empty:
         return
-    groups = ["kreis", "zikzak"]
+    groups = ["circle", "zigzag"]
     data = [d.loc[d["task"].str.lower() == g, "nrmse_percent"].values for g in groups]
     labels = [g.capitalize() for g in groups]
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -451,7 +451,7 @@ def _plot_bar_combined(simple_df: pd.DataFrame, out_path: str):
     ax.barh(y, values, color="#1f77b4", alpha=0.85)
     ax.set_yticks(y)
     ax.set_yticklabels(labels)
-    ax.set_xlabel("Abweichung (kombinierter Mittelwert, nRMSE %)\n(kreis & zikzak)")
+    ax.set_xlabel("Abweichung (kombinierter Mittelwert, nRMSE %)\n(circle & zigzag)")
     for i, v in enumerate(values):
         ax.text(v + 0.3, i, f"{v:.1f}%", va="center", fontsize=8)
     plt.tight_layout()

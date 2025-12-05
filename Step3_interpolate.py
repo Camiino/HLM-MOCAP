@@ -9,7 +9,7 @@ reference_dir = "Exports/Reference"
 DELIMITER = ";"
 AXES = ("X", "Y", "Z")
 
-EXPERIMENT_TYPES = ["gewicht", "greifen", "präzision"]
+EXPERIMENT_TYPES = ["weight", "grasp", "precision"]
 MARKERS_TO_INTERPOLATE = [1, 2, 3, 4, 5]
 FALLBACK_MARKERS = [4, 5]
 SPECIAL_NEIGHBORS = {

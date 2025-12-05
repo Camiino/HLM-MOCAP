@@ -366,9 +366,9 @@ def write_series_csv_multi(path: str, series_by_marker: List[List[Tuple[float, f
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Create Musterverlauf for ZickZack and Kreis from reference markers.")
+    parser = argparse.ArgumentParser(description="Create Musterverlauf for ZickZack and Circle from reference markers.")
     parser.add_argument("--zickzack", default="ZickZack.csv", help="Input CSV for ZickZack markers (default: ZickZack.csv)")
-    parser.add_argument("--kreis", default="Kreis.csv", help="Input CSV for Kreis markers (default: Kreis.csv)")
+    parser.add_argument("--circle", default="Circle.csv", help="Input CSV for Circle markers (default: Circle.csv)")
     parser.add_argument("--samples", type=int, default=101, help="Number of samples per trajectory (default: 101)")
     parser.add_argument("--zz-samples", type=int, default=None, help="Number of samples for ZickZack only (overrides --samples for ZickZack)")
     parser.add_argument("--outdir", default=".", help="Output directory (default: current directory)")
@@ -402,12 +402,12 @@ def main():
     except Exception as e:
         print(f"❌ Failed to create ZickZack Musterverlauf: {e}")
 
-    # --- Kreis ---
+    # --- Circle ---
     try:
-        k_path = args.kreis if os.path.isabs(args.kreis) else os.path.join(script_dir, args.kreis)
+        k_path = args.circle if os.path.isabs(args.circle) else os.path.join(script_dir, args.circle)
         markers = read_markers_from_reference_csv(k_path)
         if len(markers) < 2:
-            raise ValueError("Kreis requires 2 markers (center=1, on-diameter=2)")
+            raise ValueError("Circle requires 2 markers (center=1, on-diameter=2)")
         # Try to obtain plane normal from Table.csv (optional)
         plane_normal = None
         if args.table:
@@ -419,11 +419,11 @@ def main():
                 except Exception:
                     plane_normal = None
         series = circle_path(markers[0], markers[1], args.samples, plane_normal=plane_normal, lock_z=args.lock_z)
-        out_k = os.path.join(args.outdir, f"{args.prefix}Kreis.csv")
+        out_k = os.path.join(args.outdir, f"{args.prefix}Circle.csv")
         write_series_csv(out_k, series, delimiter=args.delimiter)
-        print(f"✅ Kreis Musterverlauf saved: {out_k}")
+        print(f"✅ Circle Musterverlauf saved: {out_k}")
     except Exception as e:
-        print(f"❌ Failed to create Kreis Musterverlauf: {e}")
+        print(f"❌ Failed to create Circle Musterverlauf: {e}")
 
 
 if __name__ == "__main__":

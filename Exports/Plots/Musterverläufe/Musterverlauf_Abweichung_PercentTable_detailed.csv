@@ -1,4 +1,4 @@
-cluster,kreis_nrmse_percent,zikzak_nrmse_percent,combined_mean_nrmse_percent
+cluster,circle_nrmse_percent,zigzag_nrmse_percent,combined_mean_nrmse_percent
 AlterOnly/18-20,0.8113147731605451,26.01365564744391,13.412485210302227
 AlterOnly/21-25,15.557750837100354,25.935808785055702,20.746779811078028
 AlterOnly/25-35,16.615384974055,25.024810484213766,20.820097729134382

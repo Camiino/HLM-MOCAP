@@ -6,7 +6,7 @@ reference_dir = "Exports/Reference"
 DELIMITER = ";"
 
 # Experiment categories
-experiment_types = ["gewicht", "greifen", "präzision"]
+experiment_types = ["weight", "grasp", "precision"]
 
 # Marker columns
 marker4_cols = [f"4_{a}" for a in ("X", "Y", "Z")]

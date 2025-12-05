@@ -44,7 +44,7 @@ Key scripts and their outputs (in order of execution):
 
 - `Step10_musterverlauf_analysis.py` -> compares averaged XY-trajectories against Musterverläufe; also aggregates and creates visuals. Writes
   - `Exports/Musterverlauf_Abweichung_Summary.csv`
-  - per-cluster overlays `…/kreis|zikzak/muster_compare.png`
+  - per-cluster overlays `…/circle|zigzag/muster_compare.png`
   - heatmap `Exports/Musterverlauf_Heatmap_nRMSE.png`
   - boxplots `Exports/Musterverlauf_Boxplot_byTask.png`
   - bar chart `Exports/Musterverlauf_Bar_Combined.png`
@@ -53,14 +53,14 @@ Key scripts and their outputs (in order of execution):
   - `Exports/Musterverlauf_Abweichung_PercentTable_detailed.csv`
   - `Exports/Musterverlauf_Total_Abweichung.txt`
 
-- `Step11_best_single_plots.py` -> selects the best single trial (no averaging) for `ptp`, `zikzak`, and `gewicht` and generates velocity/tangential-acceleration plots. Writes plots to `Exports/Single_Plots/` and the selected cleaned CSVs to `Exports/Single_Selected/`.
+- `Step11_best_single_plots.py` -> selects the best single trial (no averaging) for `ptp`, `zigzag`, and `weight` and generates velocity/tangential-acceleration plots. Writes plots to `Exports/Single_Plots/` and the selected cleaned CSVs to `Exports/Single_Selected/`.
 
 Directory with references and tools for Musterverläufe:
 - `AbweichungsReferenzen/` — pattern definitions and helpers used in Step 10
-  - `Kreis.csv`, `ZickZack.csv` (base shapes)
-  - `create_musterverlauf.py` (builds `Musterverlauf_Kreis.csv`, `Musterverlauf_ZickZack.csv`)
+  - `Circle.csv`, `ZickZack.csv` (base shapes)
+  - `create_musterverlauf.py` (builds `Musterverlauf_Circle.csv`, `Musterverlauf_ZickZack.csv`)
   - `animate_musterverlauf.py` (visual sanity-check/animation)
-  - `Musterverlauf_Kreis.csv`, `Musterverlauf_ZickZack.csv` (generated references)
+  - `Musterverlauf_Circle.csv`, `Musterverlauf_ZickZack.csv` (generated references)
 
 Notes:
 - `data_clean_v1.py` exists but is not part of the official pipeline described below.
@@ -71,9 +71,9 @@ Notes:
 
 - CSV delimiter is normalized to `;` throughout the pipeline.
 - A standard trajectory table has columns: `Frame;1_X;1_Y;1_Z;2_X;...;5_Z` (marker IDs 1-5, axes X/Y/Z). Some experiments only use a subset.
-- Filenames include both proband and experiment (e.g., `Probant3_kreis_....csv`).
+- Filenames include both proband and experiment (e.g., `Probant3_circle_....csv`).
   - Proband extraction uses `probant\d+`.
-  - Experiment detection relies on substrings: `kreis`, `ptp`, `ptp2`, `ptp3`, `zikzak`, `sequentiell`, `praezision`, `greifen`, `gewicht`.
+  - Experiment detection relies on substrings: `circle`, `ptp`, `ptp2`, `ptp3`, `zigzag`, `sequential`, `precision`, `grasp`, `weight`.
 
 
 ## Processing Pipeline (Step-by-Step)
@@ -96,7 +96,7 @@ Notes:
 
 3) Step 2.5 — Select Reference Trials
 - File: `Step2-5_references.py`
-- Purpose: For experiments `gewicht`, `greifen`, `praezision`, chooses the files with the most valid rows for markers 4 and 5.
+- Purpose: For experiments `weight`, `grasp`, `precision`, chooses the files with the most valid rows for markers 4 and 5.
 - Output: `Exports/Reference/marker{4,5}_{experiment}.csv` — used as motion templates to fill long leading/trailing gaps in Step 3.
 
 4) Step 3 — Interpolate and Fill Gaps
@@ -120,7 +120,7 @@ Notes:
 - Purpose: For each `(probant, experiment)` group, resamples each trimmed trial to the average frame count, then takes the mean and std across trials.
 - Notes:
   - Optional `NORMALIZE_START` subtracts the initial position per column to align starts.
-  - For `gewicht/greifen/praezision`, only marker `#3` is kept.
+  - For `weight/grasp/precision`, only marker `#3` is kept.
 - Output: `Exports/Daten_Averaged_1M/*_{experiment}_mean.csv` and `*_std.csv`.
 
 7) Step 6 — Average Across Probands (by Experiment)
@@ -155,8 +155,8 @@ Notes:
 - Files: `Step10_musterverlauf_analysis.py` (analysis + aggregation + visuals), `Step10_aggregate_percent_table.py` (optional re-aggregation)
 - Purpose: Compare averaged trajectories (XY only, time-agnostic) against predefined Musterverläufe, produce a compact cluster→percentage report, and generate overview plots.
 - Alignment:
-  - kreis: translate observed center to reference center and evaluate radial deviation; report radial nRMSE% as primary metric.
-  - zikzak: translate to anchor point 2 (start), then compare shapes via arc-length resampling (no time relation).
+  - circle: translate observed center to reference center and evaluate radial deviation; report radial nRMSE% as primary metric.
+  - zigzag: translate to anchor point 2 (start), then compare shapes via arc-length resampling (no time relation).
 - Outputs: summary CSV, percent tables, totals, heatmap, boxplots, bar chart, and overlay plots in each cluster folder.
 
 12) 3D Trajectory Visualization (ad-hoc)
@@ -166,8 +166,8 @@ Notes:
 
 13) Step 11 — Best Single-Trial Plots (no averaging)
 - File: `Step11_best_single_plots.py`
-- Purpose: For `ptp`, `zikzak`, and `gewicht`, automatically select one “best” recording directly from `Exports/Daten_Raw_Clean` (fewest gaps/extrapolation) and produce plots without averaging.
-- Selection scoring (heuristic): strong penalty for leading/trailing gaps (extrapolation), then internal gaps and number of gap segments; prefers longest contiguous valid span of the relevant marker (M1 for ptp/zikzak, M3 for gewicht).
+- Purpose: For `ptp`, `zigzag`, and `weight`, automatically select one “best” recording directly from `Exports/Daten_Raw_Clean` (fewest gaps/extrapolation) and produce plots without averaging.
+- Selection scoring (heuristic): strong penalty for leading/trailing gaps (extrapolation), then internal gaps and number of gap segments; prefers longest contiguous valid span of the relevant marker (M1 for ptp/zigzag, M3 for weight).
 - Processing per selection: interpolate internal gaps, crop to valid span, Savitzky–Golay smoothing, compute |v| and tangential acceleration a_t = d|v|/dt (stable at low |v|), detect main segment, and plot.
 - Outputs: plots in `Exports/Single_Plots/` and the cropped/smoothed CSV in `Exports/Single_Selected/`.
 
@@ -277,9 +277,9 @@ You can re-run any single step after tuning its parameters; downstream steps wil
 - `Exports/Clustered/...`: cluster-level means and plots.
 - `Exports/Musterverlauf_Abweichung_Summary.csv`: per-cluster deviation metrics vs. Musterverlauf.
 - `Exports/Musterverlauf_Abweichung_PercentTable.csv`: cluster → percentage (combined mean nRMSE%).
-- `Exports/Musterverlauf_Abweichung_PercentTable_detailed.csv`: per-cluster kreis/zikzak percentages.
+- `Exports/Musterverlauf_Abweichung_PercentTable_detailed.csv`: per-cluster circle/zigzag percentages.
 - `Exports/Musterverlauf_Total_Abweichung.txt`: overall totals.
-- `…/kreis|zikzak/muster_compare.png`: overlay of averaged path vs. Musterverlauf in each cluster folder.
+- `…/circle|zigzag/muster_compare.png`: overlay of averaged path vs. Musterverlauf in each cluster folder.
  - `Exports/Musterverlauf_Heatmap_nRMSE.png`: heatmap of nRMSE% by cluster × task.
  - `Exports/Musterverlauf_Boxplot_byTask.png`: boxplots of cluster nRMSE% grouped by task.
  - `Exports/Musterverlauf_Bar_Combined.png`: bar chart of combined mean nRMSE% per cluster.

@@ -110,12 +110,12 @@ def build_projection(x, y, z, mode: str, plane_z: Optional[float] = None):
 
 
 def _ask_choice() -> str:
-    print("Which trajectory to view?\n  [1] Kreis\n  [2] ZickZack")
+    print("Which trajectory to view?\n  [1] Circle\n  [2] ZickZack")
     while True:
         choice = input("Enter 1/2 (or 'k'/'z', 'q' to quit): ").strip().lower()
-        if choice in ("1", "k", "kreis"):  
-            return "kreis"
-        if choice in ("2", "z", "zz", "zickzack", "zickzak", "zikzak"):  
+        if choice in ("1", "k", "circle"):  
+            return "circle"
+        if choice in ("2", "z", "zz", "zickzack", "zickzak", "zigzag"):  
             return "zickzack"
         if choice in ("q", "quit", "exit"):
             raise SystemExit(0)
@@ -123,8 +123,8 @@ def _ask_choice() -> str:
 
 
 def _ensure_musterverlauf(kind: str, script_dir: str) -> str:
-    assert kind in ("kreis", "zickzack")
-    filename = f"Musterverlauf_{'Kreis' if kind=='kreis' else 'ZickZack'}.csv"
+    assert kind in ("circle", "zickzack")
+    filename = f"Musterverlauf_{'Circle' if kind=='circle' else 'ZickZack'}.csv"
     p1 = os.path.join(script_dir, filename)
     p2 = os.path.join(os.getcwd(), filename)
     if os.path.isfile(p1):
@@ -150,7 +150,7 @@ def _ensure_musterverlauf(kind: str, script_dir: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Animate 3D point with path and projection from Musterverlauf CSV")
-    parser.add_argument("csv", nargs="?", default=None, help="Input CSV path or shortcut: 'kreis' or 'zickzack' (default: ask)")
+    parser.add_argument("csv", nargs="?", default=None, help="Input CSV path or shortcut: 'circle' or 'zickzack' (default: ask)")
     parser.add_argument("--marker-id", type=int, default=1, help="Marker ID to animate (default: 1)")
     parser.add_argument("--projection", choices=["none", "xy", "xz", "yz"], default="none", help="Projection plane for path shadow (default: none)")
     parser.add_argument("--plane-z", type=float, default=None, help="Z height for XY projection plane (default: z-min)")
@@ -173,14 +173,14 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     path = args.csv
 
-    if path is None or path.strip().lower() in ("kreis", "k", "1", "zickzack", "zickzak", "zikzak", "z", "zz", "2"):
+    if path is None or path.strip().lower() in ("circle", "k", "1", "zickzack", "zickzak", "zigzag", "z", "zz", "2"):
         # Interactive selection if not explicitly provided
-        if path is None or path.strip().lower() in ("kreis", "k", "1"):
-            kind = "kreis" if path else _ask_choice()
-            if path and kind != "kreis":
+        if path is None or path.strip().lower() in ("circle", "k", "1"):
+            kind = "circle" if path else _ask_choice()
+            if path and kind != "circle":
                 # If user typed e.g. '2' we already handled above; keep robust
-                kind = "kreis"
-        elif path.strip().lower() in ("zickzack", "zickzak", "zikzak", "z", "zz", "2"):
+                kind = "circle"
+        elif path.strip().lower() in ("zickzack", "zickzak", "zigzag", "z", "zz", "2"):
             kind = "zickzack"
         else:
             kind = _ask_choice()
