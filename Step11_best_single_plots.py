@@ -9,10 +9,10 @@ from scipy.signal import savgol_filter, butter, filtfilt
 
 
 """
-Step 11 — Best Single-Trial Plots (no averaging)
+Step 11 - Best Single-Trial Plots (no averaging)
 
 Purpose:
-- Scan cleaned raw CSVs (Exports/Daten_Raw_Clean) and pick one "best" file per
+- Scan cleaned raw CSVs (Exports/Raw_Data_Clean) and pick one "best" file per
   task among: ptp, zigzag, weight, precision. "Best" = least missing samples for the
   marker used in analysis (marker 1 for ptp/zigzag, marker 3 for weight and precision),
   with strong penalty for leading/trailing gaps (extrapolation) and internal
@@ -36,7 +36,7 @@ Notes:
 
 
 # --- CONFIG ---
-INPUT_ROOT = "Exports/Daten_Raw_Clean"
+INPUT_ROOT = "Exports/Raw_Data_Clean"
 OUTPUT_PLOTS = "Exports/Single_Plots"
 OUTPUT_SELECTED = "Exports/Single_Selected"
 DELIMITER = ";"
@@ -66,7 +66,7 @@ SAMPLE_RATE_HZ = 200.0  # frames per second
 POSITION_UNIT = "mm"         # "mm" or "m"
 CONVERT_POSITION_TO_METERS = True
 
-# Savitzky–Golay parameters (positions first, then derivatives)
+# Savitzky-Golay parameters (positions first, then derivatives)
 SG_POLY_POS = 3
 SG_WINDOW_POS = 21
 SG_WINDOW_DER = 21
@@ -388,11 +388,11 @@ def plot_single(group: str, path: str, out_dir: str):
     fig, (ax_v, ax_a) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
     ax_v.plot(x_seg, v_disp[s:e + 1], label=f"Marker {marker_id}", linewidth=1.4)
     ax_a.plot(x_seg, a_disp[s:e + 1], label=f"Marker {marker_id}", linewidth=1.2)
-    ax_v.set_title("Geschwindigkeit (||v||)")
-    ax_a.set_title("Tangentialbeschleunigung (a_t)")
-    ax_a.set_xlabel("Zeit (s)")
+    ax_v.set_title("Speed (||v||)")
+    ax_a.set_title("Tangential acceleration (a_t)")
+    ax_a.set_xlabel("Time (s)")
     ax_v.set_ylabel(f"||v|| [{unit_out}/s]")
-    ax_a.set_ylabel(f"a_t [{unit_out}/s²]")
+    ax_a.set_ylabel(f"a_t [{unit_out}/s^2]")
     ax_v.grid(True, alpha=0.2)
     ax_a.grid(True, alpha=0.2)
     ax_v.legend()
@@ -406,8 +406,8 @@ def plot_single(group: str, path: str, out_dir: str):
 
     fig_vo, ax_vo = plt.subplots(1, 1, figsize=(10, 4))
     ax_vo.plot(x_seg, v_disp[s:e + 1], label=f"Marker {marker_id}", linewidth=1.4)
-    ax_vo.set_title("Geschwindigkeit (||v||)")
-    ax_vo.set_xlabel("Zeit (s)")
+    ax_vo.set_title("Speed (||v||)")
+    ax_vo.set_xlabel("Time (s)")
     ax_vo.set_ylabel(f"||v|| [{unit_out}/s]")
     ax_vo.grid(True, alpha=0.2)
     ax_vo.legend()
@@ -463,7 +463,7 @@ def main():
             score_rows.append(r_out)
 
     if not selections:
-        print("No candidates found. Ensure Exports/Daten_Raw_Clean exists and file names contain ptp/zigzag/weight.")
+        print("No candidates found. Ensure Exports/Raw_Data_Clean exists and file names contain ptp/zigzag/weight.")
         return
 
     # --- Process selections and plot ---
@@ -471,11 +471,11 @@ def main():
     summaries = []
     for group, path in selections.items():
         try:
-            print(f"\n▶ Processing best file for {group}: {path}")
+            print(f"\n>> Processing best file for {group}: {path}")
             summary = plot_single(group, path, OUTPUT_PLOTS)
             summaries.append(summary)
         except Exception as e:
-            print(f"❌ Failed for {group}: {e}")
+            print(f"[error] Failed for {group}: {e}")
 
     # --- Persist selection summary ---
     if score_rows:
@@ -490,3 +490,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+

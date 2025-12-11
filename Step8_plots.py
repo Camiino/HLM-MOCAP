@@ -5,8 +5,7 @@ from glob import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.signal import savgol_filter
-from scipy.signal import butter, filtfilt
+from scipy.signal import savgol_filter, butter, filtfilt
 
 
 # --- CONFIG ---
@@ -15,7 +14,7 @@ OUTPUT_DIR = "Exports/Plots"
 DELIMITER = ";"
 
 # If empty, marker IDs are inferred from columns like "3_X", "3_Y", "3_Z"
-MARKERS = []
+MARKERS: list[int] = []
 AXES = ["X", "Y", "Z"]
 
 # Savitzky–Golay parameters
@@ -24,27 +23,17 @@ SG_WINDOW_POS = 21  # smooth positions first (odd)
 SG_WINDOW_DER = 21  # window for SG differentiation (odd)
 
 # Optional robust outlier guard before smoothing (Hampel-like)
-HAMPEL_WINDOW = 7     # half-window; set 0 to disable
+HAMPEL_WINDOW = 7  # half-window; set 0 to disable
 HAMPEL_SIGMAS = 3.0
 
 # Emphasis to suppress smaller bumps (post-processing on magnitudes)
-# Apply strong, adaptive smoothing to velocity/acceleration magnitudes
 EMPHASIZE_VELOCITY = True
 EMPHASIZE_ACCELERATION = False
-
-# Fraction of series length used to adapt the smoothing window
-# e.g., 0.33 -> window ≈ 33% of series length (capped to valid odd length)
 PEAK_V_WINDOW_FRAC = 0.33
 PEAK_A_WINDOW_FRAC = 0.25
-
-# Minimum/base windows (will be increased by *_FRAC if that yields larger window)
 PEAK_V_WINDOW = 41
 PEAK_A_WINDOW = 41
-
-# Polyorder for the emphasis smoother
 PEAK_POLY = 2
-
-# Keep the original peak height after emphasis smoothing
 PEAK_RESCALE_TO_MAX = True
 
 # --- Units & Time Base ---
@@ -62,10 +51,9 @@ VEL_CUTOFF_HZ = 6.0
 ACC_CUTOFF_HZ = 8.0
 
 
-# --- Setup ---
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 files = glob(f"{INPUT_DIR}/*_final_clean.csv")
-summary_rows = []  # collect per-aufgabe velocity + acceleration stats
+summary_rows: list[dict] = []
 
 
 def _ensure_odd(n: int, *, min_val: int = 5) -> int:
@@ -120,10 +108,7 @@ def _infer_markers(columns) -> list[int]:
 
 
 def compute_scalar_velocity_and_acceleration(df: pd.DataFrame, marker_id: int, dt: float, pos_scale: float = 1.0):
-    """
-    Compute smoothed ||v||, ||a|| and tangential acceleration a_tang = d||v||/dt for a marker.
-    Returns: (vel_smooth, acc_smooth, a_tang)
-    """
+    """Compute smoothed ||v||, ||a|| and tangential acceleration a_tang = d||v||/dt for a marker."""
     pos_axes = {}
     for axis in AXES:
         col = f"{marker_id}_{axis}"
@@ -145,8 +130,14 @@ def compute_scalar_velocity_and_acceleration(df: pd.DataFrame, marker_id: int, d
 
     vel_norm = np.sqrt(vx**2 + vy**2 + vz**2)
     acc_norm = np.sqrt(ax**2 + ay**2 + az**2)
-    a_tang = savgol_filter(vel_norm, window_length=_cap_window(SG_WINDOW_DER, len(vel_norm), min_val=SG_POLY_POS + 2),
-                           polyorder=SG_POLY_POS, deriv=1, delta=dt, mode="interp")
+    a_tang = savgol_filter(
+        vel_norm,
+        window_length=_cap_window(SG_WINDOW_DER, len(vel_norm), min_val=SG_POLY_POS + 2),
+        polyorder=SG_POLY_POS,
+        deriv=1,
+        delta=dt,
+        mode="interp",
+    )
 
     if USE_BUTTER_SMOOTH and dt > 0 and np.isfinite(dt):
         fs = 1.0 / dt
@@ -232,7 +223,6 @@ def _renormalize_percent(t_segment: np.ndarray) -> np.ndarray:
     return (t_segment - t0) / (t1 - t0) * 100.0
 
 
-# --- Plotting ---
 for path in files:
     name = os.path.basename(path).replace("_final_clean.csv", "")
     print(f"\nPlotting scalar curves for: {name}")
@@ -240,7 +230,6 @@ for path in files:
     try:
         df = pd.read_csv(path, delimiter=DELIMITER)
 
-        # --- Determine time base and dt ---
         use_seconds = False
         t_seconds = None
         dt = 1.0
@@ -264,12 +253,10 @@ for path in files:
                 if len(t_percent) > 1:
                     dt = float(np.mean(np.diff(t_percent)))
 
-        # Infer marker IDs if not provided
         markers_to_use = MARKERS or _infer_markers(df.columns)
         if not markers_to_use:
             raise ValueError("No marker columns like '<id>_X|Y|Z' found")
 
-        # Compute v,a for all markers first
         per_marker = {}
         v_stack = []
         a_tang_stack = []
@@ -277,12 +264,8 @@ for path in files:
         pos_unit_out = "a.u."
         if use_seconds:
             if POSITION_UNIT == "mm":
-                if CONVERT_POSITION_TO_METERS:
-                    pos_scale = 1e-3
-                    pos_unit_out = "m"
-                else:
-                    pos_scale = 1.0
-                    pos_unit_out = "mm"
+                pos_scale = 1e-3 if CONVERT_POSITION_TO_METERS else 1.0
+                pos_unit_out = "m" if CONVERT_POSITION_TO_METERS else "mm"
             elif POSITION_UNIT == "m":
                 pos_scale = 1.0
                 pos_unit_out = "m"
@@ -301,14 +284,11 @@ for path in files:
         v_stack = np.vstack(v_stack)
         a_tang_stack = np.vstack(a_tang_stack)
 
-        # Reference velocity as median across markers (unemphasized)
         v_ref_raw = np.median(v_stack, axis=0)
         v_ref = v_ref_raw.copy()
 
-        # Median tangential acceleration across markers for peak detection
         a_tang_ref_raw = np.median(a_tang_stack, axis=0)
 
-        # OPTIONAL: Apply emphasis on the reference velocity before segment detection
         if EMPHASIZE_VELOCITY:
             v_ref = _emphasize_peak(
                 v_ref,
@@ -318,13 +298,11 @@ for path in files:
                 frac=PEAK_V_WINDOW_FRAC,
             )
 
-        # Detect main movement segment via hysteresis thresholds on velocity
         s, e = _find_main_segment(v_ref, enter_frac=0.05, exit_frac=0.03, min_len_frac=0.1)
 
-        # Time handling for plotting axis
         if TIME_AXIS_MODE.lower() == "seconds" and use_seconds and t_seconds is not None:
-            x_plot = t_seconds[s:e + 1] - t_seconds[s]
-            xlabel = "Zeit (s)"
+            x_plot = t_seconds[s : e + 1] - t_seconds[s]
+            xlabel = "Time (s)"
         elif TIME_AXIS_MODE.lower() == "frames":
             x_plot = np.arange(e - s + 1, dtype=float)
             xlabel = "Frames"
@@ -333,12 +311,11 @@ for path in files:
                 t_base = t_seconds
             else:
                 t_base = df["Frame"].astype(float).values if "Frame" in df.columns else np.arange(len(df), dtype=float)
-            time_seg = t_base[s:e + 1]
+            time_seg = t_base[s : e + 1]
             x_plot = _renormalize_percent(time_seg)
-            xlabel = "Bewegungsfortschritt (%)"
+            xlabel = "Movement progress (%)"
 
-        # --- Velocity scalar stats (within segment, on UNemphasized ref) ---
-        v_seg = v_ref_raw[s:e + 1]
+        v_seg = v_ref_raw[s : e + 1]
         max_vel = float(np.max(v_seg)) if len(v_seg) > 0 else float("nan")
         median_vel = float(np.median(v_seg)) if len(v_seg) > 0 else float("nan")
 
@@ -346,16 +323,11 @@ for path in files:
             t_base = t_seconds
         else:
             t_base = df["Frame"].astype(float).values if "Frame" in df.columns else np.arange(len(df), dtype=float)
-        seg_time = t_base[s:e + 1]
+        seg_time = t_base[s : e + 1]
         seg_pct = _renormalize_percent(seg_time)
-        if len(v_seg) > 0:
-            peak_local_idx = int(np.argmax(v_seg))
-            peak_pct = float(seg_pct[peak_local_idx])
-        else:
-            peak_pct = float("nan")
+        peak_pct = float(seg_pct[int(np.argmax(v_seg))]) if len(v_seg) > 0 else float("nan")
 
-        # --- Tangential acceleration peak stats (within the same segment) ---
-        a_tang_seg = a_tang_ref_raw[s:e + 1]
+        a_tang_seg = a_tang_ref_raw[s : e + 1]
         if len(a_tang_seg) > 0:
             pos_idx = int(np.argmax(a_tang_seg))
             neg_idx = int(np.argmin(a_tang_seg))
@@ -369,45 +341,49 @@ for path in files:
             pos_accel_pct = float("nan")
             neg_accel_pct = float("nan")
 
-        vel_units_here = (f"{pos_unit_out}/s" if use_seconds else "a.u./%")
-        acc_units_here = (f"{pos_unit_out}/s²" if use_seconds else "a.u./%²")
+        vel_units_here = f"{pos_unit_out}/s" if use_seconds else "a.u./%"
+        acc_units_here = f"{pos_unit_out}/s^2" if use_seconds else "a.u./%"
 
-        summary_rows.append({
-            "Aufgabe": name,
-            "MaxVelocity": max_vel,
-            "MedianVelocity": median_vel,
-            "VelocityUnits": vel_units_here,
-            "PeakVelocityPercent": peak_pct,
-            "PosAccelPeak": pos_accel_peak,
-            "NegAccelPeak": neg_accel_peak,
-            "AccelUnits": acc_units_here,
-            "PosAccelPeakPercent": pos_accel_pct,
-            "NegAccelPeakPercent": neg_accel_pct,
-        })
+        summary_rows.append(
+            {
+                "Task": name,
+                "MaxVelocity": max_vel,
+                "MedianVelocity": median_vel,
+                "VelocityUnits": vel_units_here,
+                "PeakVelocityPercent": peak_pct,
+                "PosAccelPeak": pos_accel_peak,
+                "NegAccelPeak": neg_accel_peak,
+                "AccelUnits": acc_units_here,
+                "PosAccelPeakPercent": pos_accel_pct,
+                "NegAccelPeakPercent": neg_accel_pct,
+            }
+        )
 
-        # --- Plotting ---
         fig, (ax_v, ax_a) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
-        fig.suptitle(f"{name} | Betrag von Geschwindigkeit und Beschleunigung", fontsize=14)
+        fig.suptitle(f"{name} | Magnitude of speed and acceleration", fontsize=14)
 
-        trim = max(1, int(0.01 * (e - s + 1)))  # 1 % Rand weg
+        trim = max(1, int(0.01 * (e - s + 1)))
         sl = slice(s + trim, e + 1 - trim)
 
         for marker_id, (v, a, a_tang) in per_marker.items():
+            v_plot = v
+            a_plot = a_tang
             if EMPHASIZE_VELOCITY:
-                v = _emphasize_peak(v, base_window=PEAK_V_WINDOW, poly=PEAK_POLY,
-                                    rescale_to_max=PEAK_RESCALE_TO_MAX, frac=PEAK_V_WINDOW_FRAC)
-            ax_v.plot(x_plot[trim:-trim] if trim > 0 else x_plot, v[sl], label=f"Marker {marker_id}", linewidth=1.4)
-            ax_a.plot(x_plot[trim:-trim] if trim > 0 else x_plot, a_tang[sl], label=f"Marker {marker_id}", linewidth=1.2)
+                v_plot = _emphasize_peak(v_plot, base_window=PEAK_V_WINDOW, poly=PEAK_POLY, rescale_to_max=PEAK_RESCALE_TO_MAX, frac=PEAK_V_WINDOW_FRAC)
+            if EMPHASIZE_ACCELERATION:
+                a_plot = _emphasize_peak(a_plot, base_window=PEAK_A_WINDOW, poly=PEAK_POLY, rescale_to_max=PEAK_RESCALE_TO_MAX, frac=PEAK_A_WINDOW_FRAC)
+            ax_v.plot(x_plot[trim:-trim] if trim > 0 else x_plot, v_plot[sl], label=f"Marker {marker_id}", linewidth=1.4)
+            ax_a.plot(x_plot[trim:-trim] if trim > 0 else x_plot, a_plot[sl], label=f"Marker {marker_id}", linewidth=1.2)
 
         if use_seconds:
             vel_units = f"{pos_unit_out}/s"
-            acc_units = f"{pos_unit_out}/s²"
+            acc_units = f"{pos_unit_out}/s^2"
         else:
             vel_units = "a.u./%"
-            acc_units = "a.u./%²"
+            acc_units = "a.u./%"
 
-        ax_v.set_title("Geschwindigkeit (||v||)")
-        ax_a.set_title("Tangentiale Beschleunigung (d||v||/dt)")
+        ax_v.set_title("Speed (||v||)")
+        ax_a.set_title("Tangential acceleration (d||v||/dt)")
         ax_a.set_xlabel(xlabel)
         ax_v.set_ylabel(f"||v|| [{vel_units}]")
         ax_a.set_ylabel(f"a_tang [{acc_units}]")
@@ -428,19 +404,19 @@ for path in files:
             f"neg_a={neg_accel_peak:.3f} {acc_units_here} @ {neg_accel_pct:.1f}%"
         )
 
-        # --- Velocity-only plot ---
         fig_vo, ax_vo = plt.subplots(1, 1, figsize=(10, 4))
         for marker_id, (v, _a, _a_tang) in per_marker.items():
+            v_plot = v
             if EMPHASIZE_VELOCITY:
-                v = _emphasize_peak(
-                    v,
+                v_plot = _emphasize_peak(
+                    v_plot,
                     base_window=PEAK_V_WINDOW,
                     poly=PEAK_POLY,
                     rescale_to_max=PEAK_RESCALE_TO_MAX,
                     frac=PEAK_V_WINDOW_FRAC,
                 )
-            ax_vo.plot(x_plot, v[s:e + 1], label=f"Marker {marker_id}", linewidth=1.4)
-        ax_vo.set_title("Geschwindigkeit (||v||)")
+            ax_vo.plot(x_plot, v_plot[s : e + 1], label=f"Marker {marker_id}", linewidth=1.4)
+        ax_vo.set_title("Speed (||v||)")
         ax_vo.set_xlabel(xlabel)
         ax_vo.set_ylabel(f"||v|| [{vel_units}]")
         ax_vo.grid(True, alpha=0.2)
@@ -454,7 +430,6 @@ for path in files:
     except Exception as e:
         print(f"Failed for {name}: {e}")
 
-# Write summary CSV for all Aufgaben
 if summary_rows:
     summary_df = pd.DataFrame(summary_rows)
     summary_path = os.path.join(OUTPUT_DIR, "velocity_summary.csv")

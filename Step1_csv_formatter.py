@@ -2,34 +2,33 @@ import os
 import csv
 
 # --- CONFIG ---
-input_root = "Exports/Daten_Raw"
-output_root = "Exports/Daten_Raw_Formatted"
+input_root = "Exports/Raw_Data"
+output_root = "Exports/Raw_Data_Formatted"
 
 # --- Ensure output root exists ---
 os.makedirs(output_root, exist_ok=True)
 
+
 def clean_and_convert_file(input_path, output_path):
+    """Normalize raw CSVs to semicolon-delimited rectangular files."""
     try:
         with open(input_path, "r", encoding="cp1252") as f:
             lines = [line.strip() for line in f if line.strip()]
     except UnicodeDecodeError as e:
-        print(f"❌ Encoding error in {input_path}: {e}")
+        print(f"[error] Encoding error in {input_path}: {e}")
         return
 
     try:
         traj_start = lines.index("TRAJECTORIES")
     except ValueError:
-        print(f"❌ 'TRAJECTORIES' not found in: {input_path}")
+        print(f"[error] 'TRAJECTORIES' not found in: {input_path}")
         return
 
-    field_lines = lines[traj_start + 1:]
+    field_lines = lines[traj_start + 1 :]
     split_lines = [line.split(",") for line in field_lines]
     max_fields = max(len(line) for line in split_lines)
 
-    padded_lines = [
-        line + [""] * (max_fields - len(line))
-        for line in split_lines
-    ]
+    padded_lines = [line + [""] * (max_fields - len(line)) for line in split_lines]
 
     header_lines = lines[:traj_start]
     converted_lines = []
@@ -52,10 +51,11 @@ def clean_and_convert_file(input_path, output_path):
         for line in converted_lines:
             f.write(line + "\n")
 
-    print(f"✅ Converted: {input_path} → {output_path}")
+    print(f"[ok] Converted: {input_path} -> {output_path}")
+
 
 # --- STEP THROUGH ALL CSV FILES ---
-for root, dirs, files in os.walk(input_root):
+for root, _, files in os.walk(input_root):
     for file in files:
         if file.lower().endswith(".csv"):
             input_path = os.path.join(root, file)

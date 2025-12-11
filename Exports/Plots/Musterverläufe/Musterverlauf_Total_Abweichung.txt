@@ -1,2 +1,0 @@
-TOTAL over clusters (mean of cluster means): 19.659%
-TOTAL over all entries (mean across circle+zigzag): 19.659%

@@ -4,46 +4,47 @@ import numpy as np
 import re
 
 # --- CONFIG ---
-input_root = "Exports/Daten_Raw_Formatted"
-output_root = "Exports/Daten_Raw_Clean"
+INPUT_ROOT = "Exports/Raw_Data_Formatted"
+OUTPUT_ROOT = "Exports/Raw_Data_Clean"
 
-# --- Determine base_markers based on file/folder name ---
-def determine_base_markers(path):
+
+def determine_base_markers(path: str) -> list[int]:
+    """Choose which marker IDs must be present based on filename."""
     lower = path.lower()
     if any(k in lower for k in ["weight", "grasp", "precision"]):
         return [1, 2, 3, 4, 5]
-    elif any(k in lower for k in ["ptp", "ptp2", "ptp3", "sequential", "zickzack", "circle"]):
+    if any(k in lower for k in ["ptp", "ptp2", "ptp3", "sequential", "zickzack", "circle", "zigzag"]):
         return [1]
-    else:
-        print(f"⚠️  Unknown group for: {path} → defaulting to [1]")
-        return [1]
+    print(f"[warn] Unknown experiment group for '{path}', defaulting to [1]")
+    return [1]
 
-# --- Parse custom German decimal format safely ---
+
 def parse_val(val):
+    """Parse numbers that may use German thousand separators."""
     try:
         val = str(val).replace(" ", "")
         parts = val.split(".")
         if len(parts) > 2:
             val = "".join(parts[:-1]) + "." + parts[-1]
         return float(val)
-    except:
+    except Exception:
         return np.nan
 
-# --- Clean a single CSV file ---
-def clean_csv(input_path, output_path):
+
+def clean_csv(input_path: str, output_path: str):
     base_markers = determine_base_markers(input_path)
 
     try:
-        df_raw = pd.read_csv(input_path, sep=';', header=None, dtype=str, encoding="cp1252")
+        df_raw = pd.read_csv(input_path, sep=";", header=None, dtype=str, encoding="cp1252")
     except Exception as e:
-        print(f"❌ Failed to read {input_path}: {e}")
+        print(f"[error] Failed to read {input_path}: {e}")
         return
 
     try:
         marker_hdr_idx = df_raw.apply(lambda r: r.str.contains(r"\*1", regex=True, na=False).any(), axis=1).idxmax()
         coord_hdr_idx = marker_hdr_idx + 1
     except Exception as e:
-        print(f"❌ Could not find headers in {input_path}: {e}")
+        print(f"[error] Could not find headers in {input_path}: {e}")
         return
 
     marker_row = df_raw.iloc[marker_hdr_idx].fillna("")
@@ -68,7 +69,7 @@ def clean_csv(input_path, output_path):
         else:
             new_cols.append(f"unk_{len(new_cols)}")
 
-    df = df_raw.iloc[coord_hdr_idx + 1:].copy()
+    df = df_raw.iloc[coord_hdr_idx + 1 :].copy()
     df.columns = new_cols
 
     for col in df.columns:
@@ -79,36 +80,37 @@ def clean_csv(input_path, output_path):
     extra_markers = [m for m in all_markers if m not in base_markers]
 
     for row_idx, row in df.iterrows():
-        for e in extra_markers:
-            ex, ey, ez = f"{e}_X", f"{e}_Y", f"{e}_Z"
+        for extra_id in extra_markers:
+            ex, ey, ez = f"{extra_id}_X", f"{extra_id}_Y", f"{extra_id}_Z"
             if pd.notna(row.get(ex)) and pd.notna(row.get(ey)) and pd.notna(row.get(ez)):
-                for b in base_markers:
-                    bx, by, bz = f"{b}_X", f"{b}_Y", f"{b}_Z"
+                for base_id in base_markers:
+                    bx, by, bz = f"{base_id}_X", f"{base_id}_Y", f"{base_id}_Z"
                     if (
-                        bx in df.columns and by in df.columns and bz in df.columns and
-                        pd.isna(row.get(bx)) and pd.isna(row.get(by)) and pd.isna(row.get(bz))
+                        bx in df.columns
+                        and by in df.columns
+                        and bz in df.columns
+                        and pd.isna(row.get(bx))
+                        and pd.isna(row.get(by))
+                        and pd.isna(row.get(bz))
                     ):
                         df.loc[row_idx, [bx, by, bz]] = [row[ex], row[ey], row[ez]]
                         break
 
-    cols_to_drop = [
-        f"{e}_{axis}" for e in extra_markers for axis in ("X", "Y", "Z")
-        if f"{e}_{axis}" in df.columns
-    ]
+    cols_to_drop = [f"{e}_{axis}" for e in extra_markers for axis in ("X", "Y", "Z") if f"{e}_{axis}" in df.columns]
     df.drop(columns=cols_to_drop, inplace=True)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     try:
         df.to_csv(output_path, sep=";", index=False, encoding="cp1252")
-        print(f"✅ Cleaned: {input_path} → {output_path}")
+        print(f"[ok] Cleaned: {input_path} -> {output_path}")
     except Exception as e:
-        print(f"❌ Failed to save {output_path}: {e}")
+        print(f"[error] Failed to save {output_path}: {e}")
 
-# --- Walk through all files ---
-for root, dirs, files in os.walk(input_root):
+
+for root, _, files in os.walk(INPUT_ROOT):
     for file in files:
         if file.lower().endswith(".csv"):
             input_path = os.path.join(root, file)
-            rel_path = os.path.relpath(input_path, input_root)
-            output_path = os.path.join(output_root, rel_path)
+            rel_path = os.path.relpath(input_path, INPUT_ROOT)
+            output_path = os.path.join(OUTPUT_ROOT, rel_path)
             clean_csv(input_path, output_path)

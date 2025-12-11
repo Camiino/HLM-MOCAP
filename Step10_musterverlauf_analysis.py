@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Step 10: Complete Musterverlauf Analysis
-Combines trajectory comparison and aggregation into one comprehensive script.
+Step 10: Pattern Reference Analysis
+Compare averaged trajectories against predefined pattern references (circle, zigzag),
+aggregate nRMSE metrics, and produce summary tables and visuals.
 """
 
 import os
@@ -13,28 +14,24 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-
 # --- CONFIG ---
 EXPORTS_ROOT = "Exports"
-SEARCH_ROOTS = [
-    os.path.join(EXPORTS_ROOT, "Clustered"),
-    # add other roots if needed
-]
+SEARCH_ROOTS = [os.path.join(EXPORTS_ROOT, "Clustered")]
 
-MUSTER_KREIS = os.path.join("AbweichungsReferenzen", "Musterverlauf_Circle.csv")
-MUSTER_ZZ = os.path.join("AbweichungsReferenzen", "Musterverlauf_ZickZack.csv")
+PATTERN_CIRCLE = os.path.join("PatternReferences", "Pattern_Circle.csv")
+PATTERN_ZIGZAG = os.path.join("PatternReferences", "Pattern_Zigzag.csv")
 
 N_RESAMPLE = 200  # samples per path for comparison
 DELIM = ";"
 
 # Output files
-SUMMARY_OUT = os.path.join(EXPORTS_ROOT, "Musterverlauf_Abweichung_Summary.csv")
-OUT_SIMPLE = os.path.join(EXPORTS_ROOT, "Musterverlauf_Abweichung_PercentTable.csv")
-OUT_DETAILED = os.path.join(EXPORTS_ROOT, "Musterverlauf_Abweichung_PercentTable_detailed.csv")
-OUT_TOTAL_TXT = os.path.join(EXPORTS_ROOT, "Musterverlauf_Total_Abweichung.txt")
-OUT_HEATMAP = os.path.join(EXPORTS_ROOT, "Musterverlauf_Heatmap_nRMSE.png")
-OUT_BOXPLOT = os.path.join(EXPORTS_ROOT, "Musterverlauf_Boxplot_byTask.png")
-OUT_BAR_COMBINED = os.path.join(EXPORTS_ROOT, "Musterverlauf_Bar_Combined.png")
+SUMMARY_OUT = os.path.join(EXPORTS_ROOT, "PatternDeviation_Summary.csv")
+OUT_SIMPLE = os.path.join(EXPORTS_ROOT, "PatternDeviation_PercentTable.csv")
+OUT_DETAILED = os.path.join(EXPORTS_ROOT, "PatternDeviation_PercentTable_detailed.csv")
+OUT_TOTAL_TXT = os.path.join(EXPORTS_ROOT, "PatternDeviation_Totals.txt")
+OUT_HEATMAP = os.path.join(EXPORTS_ROOT, "PatternDeviation_Heatmap_nRMSE.png")
+OUT_BOXPLOT = os.path.join(EXPORTS_ROOT, "PatternDeviation_Boxplot_byTask.png")
+OUT_BAR_COMBINED = os.path.join(EXPORTS_ROOT, "PatternDeviation_Bar_Combined.png")
 
 
 def load_path_xy(csv_path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -56,15 +53,13 @@ def resample_arclength(x: np.ndarray, y: np.ndarray, n: int) -> np.ndarray:
     xy = np.column_stack([x, y]).astype(float)
     if len(xy) == 0:
         return np.zeros((n, 2))
-    # remove NaNs
     mask = np.all(np.isfinite(xy), axis=1)
     xy = xy[mask]
     if len(xy) == 0:
         return np.zeros((n, 2))
 
-    # collapse exact duplicates to avoid zero-length segments
     diff = np.diff(xy, axis=0)
-    seg = np.sqrt((diff ** 2).sum(axis=1))
+    seg = np.sqrt((diff**2).sum(axis=1))
     keep = np.ones(len(xy), dtype=bool)
     keep[1:] = seg > 0
     xy = xy[keep]
@@ -77,7 +72,6 @@ def resample_arclength(x: np.ndarray, y: np.ndarray, n: int) -> np.ndarray:
         return np.repeat(xy[:1], n, axis=0)
     u = s / s[-1]
 
-    # target uniform parameter
     ut = np.linspace(0.0, 1.0, n)
     xt = np.interp(ut, u, xy[:, 0])
     yt = np.interp(ut, u, xy[:, 1])
@@ -94,12 +88,12 @@ def orthogonal_procrustes(target: np.ndarray, source: np.ndarray) -> tuple[np.nd
     Y = source.astype(float)
     if X.shape != Y.shape:
         raise ValueError("Shapes must match for Procrustes alignment")
-    # center
+
     muX = X.mean(axis=0)
     muY = Y.mean(axis=0)
     X0 = X - muX
     Y0 = Y - muY
-    # scale to unit Frobenius (not strictly required to compute rotation)
+
     normY = np.linalg.norm(Y0)
     if normY == 0:
         R = np.eye(2)
@@ -107,17 +101,14 @@ def orthogonal_procrustes(target: np.ndarray, source: np.ndarray) -> tuple[np.nd
         t = muX - muY
         Y_aligned = (Y0 @ R.T) * s + muX
         return Y_aligned, s, R, t
-    # compute optimal rotation with SVD of covariance
+
     C = Y0.T @ X0
     U, S, Vt = np.linalg.svd(C)
     R = U @ Vt
-    # enforce det(R) = +1 (proper rotation)
     if np.linalg.det(R) < 0:
         U[:, -1] *= -1
         R = U @ Vt
-    # optimal scale (least squares)
     s = (np.trace((Y0 @ R).T @ X0)) / (np.linalg.norm(Y0) ** 2 + 1e-12)
-    # translation to match means
     t = muX - s * (muY @ R)
     Y_aligned = (s * (Y @ R)) + t
     return Y_aligned, s, R, t
@@ -134,13 +125,14 @@ def compute_metrics(ref: np.ndarray, obs: np.ndarray) -> dict:
     if ref.shape != obs.shape:
         raise ValueError("ref and obs must have same shape for metrics")
     diff = ref - obs
-    dist = np.sqrt((diff ** 2).sum(axis=1))
-    rmse = float(np.sqrt(np.mean(dist ** 2)))
+    dist = np.sqrt((diff**2).sum(axis=1))
+    rmse = float(np.sqrt(np.mean(dist**2)))
     mae = float(np.mean(np.abs(dist)))
     dmax = float(np.max(dist))
-    # discrete Hausdorff (symmetric)
+
     def _hausdorff(A, B):
         from scipy.spatial.distance import cdist
+
         D = cdist(A, B)
         return max(float(D.min(axis=1).max()), float(D.min(axis=0).max()))
 
@@ -161,8 +153,8 @@ def compute_metrics(ref: np.ndarray, obs: np.ndarray) -> dict:
 
 def plot_overlay(ref: np.ndarray, obs: np.ndarray, out_path: str, title: str = ""):
     plt.figure(figsize=(5.5, 5.5), dpi=120)
-    plt.plot(ref[:, 0], ref[:, 1], label="Musterverlauf", color="#1f77b4", linewidth=2)
-    plt.plot(obs[:, 0], obs[:, 1], label="Mittel (ausgerichtet)", color="#d62728", linewidth=2, alpha=0.8)
+    plt.plot(ref[:, 0], ref[:, 1], label="Pattern reference", color="#1f77b4", linewidth=2)
+    plt.plot(obs[:, 0], obs[:, 1], label="Mean (aligned)", color="#d62728", linewidth=2, alpha=0.8)
     plt.axis("equal")
     plt.xlabel("X")
     plt.ylabel("Y")
@@ -175,31 +167,27 @@ def plot_overlay(ref: np.ndarray, obs: np.ndarray, out_path: str, title: str = "
     plt.close()
 
 
-def analyze_one(mean_csv: str, muster_csv: str) -> dict:
-    # load
+def analyze_one(mean_csv: str, pattern_csv: str) -> dict:
     _, mx, my = load_path_xy(mean_csv)
-    _, rx, ry = load_path_xy(muster_csv)
-    # resample by arc length to common count
+    _, rx, ry = load_path_xy(pattern_csv)
     M = resample_arclength(mx, my, N_RESAMPLE)
     R = resample_arclength(rx, ry, N_RESAMPLE)
-    # align mean to muster (rotation + scale + translation)
     M_aligned, s, Rmat, t = orthogonal_procrustes(R, M)
     metrics = compute_metrics(R, M_aligned)
-    # enrich with transform info
-    metrics.update({
-        "scale": float(s),
-        "rot_deg": float(np.degrees(np.arctan2(Rmat[1, 0], Rmat[0, 0]))),
-        "tx": float(t[0]),
-        "ty": float(t[1]),
-        "n_points": int(N_RESAMPLE),
-    })
-    # plot to sibling path
+    metrics.update(
+        {
+            "scale": float(s),
+            "rot_deg": float(np.degrees(np.arctan2(Rmat[1, 0], Rmat[0, 0]))),
+            "tx": float(t[0]),
+            "ty": float(t[1]),
+            "n_points": int(N_RESAMPLE),
+        }
+    )
     try:
         head = os.path.dirname(mean_csv)
         task = infer_task_from_path(mean_csv)
-        name = "muster_compare.png"
-        out_plot = os.path.join(head, name)
-        title = f"{task} – Abweichung: {metrics['nrmse_percent']:.1f}% (nRMSE)"
+        out_plot = os.path.join(head, "pattern_compare.png")
+        title = f"{task} | deviation: {metrics['nrmse_percent']:.1f}% (nRMSE)"
         plot_overlay(R, M_aligned, out_plot, title)
     except Exception as e:
         print(f"[warn] plotting failed for {mean_csv}: {e}")
@@ -233,59 +221,49 @@ def _norm_path(p: str) -> list[str]:
 
 def cluster_from_relfile(relpath: str, task: str) -> str:
     parts = _norm_path(relpath)
-    # Expect something like: Clustered/<cluster...>/<task>/mean.csv
     if len(parts) < 4:
         return relpath.replace(os.sep, "/")
-    # Find 'Clustered' anchor
     try:
         i = parts.index("Clustered")
     except ValueError:
-        # already relative to Clustered? Assume first is cluster root
         i = -1
     if i >= 0:
         parts = parts[i + 1 :]
-    # Drop last two segments (task, filename) if present
     if parts and parts[-1].lower() == "mean.csv":
         parts = parts[:-1]
     if parts and parts[-1].lower() in ("circle", "zigzag"):
         parts = parts[:-1]
-    # Join as cluster key
     cluster = "/".join(parts)
     return cluster
 
 
 def run_analysis() -> pd.DataFrame:
     """Run the trajectory analysis and return the results DataFrame."""
-    print("[Step10] Comparing averaged trajectories to Musterverläufe …")
+    print("[Step10] Comparing averaged trajectories to pattern references")
     files = find_mean_files(SEARCH_ROOTS)
     if not files:
         print("No mean.csv files found under search roots.")
         return pd.DataFrame()
     print(f"Found {len(files)} mean.csv files")
 
-    # preload muster paths
-    if not os.path.isfile(MUSTER_KREIS) or not os.path.isfile(MUSTER_ZZ):
-        print("Musterverlauf CSVs not found. Expected at:"
-              f"\n  {MUSTER_KREIS}\n  {MUSTER_ZZ}")
+    if not os.path.isfile(PATTERN_CIRCLE) or not os.path.isfile(PATTERN_ZIGZAG):
+        print("Pattern reference CSVs not found. Expected at:"
+              f"\n  {PATTERN_CIRCLE}\n  {PATTERN_ZIGZAG}")
         return pd.DataFrame()
 
     rows = []
     for fp in files:
         task = infer_task_from_path(fp)
-        muster = MUSTER_KREIS if task == "circle" else MUSTER_ZZ if task == "zigzag" else None
-        if muster is None:
+        pattern = PATTERN_CIRCLE if task == "circle" else PATTERN_ZIGZAG if task == "zigzag" else None
+        if pattern is None:
             print(f"[skip] Unknown task for {fp}")
             continue
         try:
-            m = analyze_one(fp, muster)
+            m = analyze_one(fp, pattern)
             rel = os.path.relpath(fp, EXPORTS_ROOT)
-            row = {
-                "file": rel,
-                "task": task,
-                **m,
-            }
+            row = {"file": rel, "task": task, **m}
             rows.append(row)
-            print(f"  • {rel}: nRMSE = {m['nrmse_percent']:.2f}% | Hausdorff = {m['hausdorff_percent']:.2f}%")
+            print(f"  -> {rel}: nRMSE = {m['nrmse_percent']:.2f}% | Hausdorff = {m['hausdorff_percent']:.2f}%")
         except Exception as e:
             print(f"[error] Failed {fp}: {e}")
 
@@ -306,52 +284,43 @@ def aggregate_results(df: pd.DataFrame):
     if df.empty:
         print("No data to aggregate.")
         return
-        
-    print("[Step10] Creating aggregated tables …")
-    
+
+    print("[Step10] Creating aggregated tables")
+
     if "file" not in df.columns or "task" not in df.columns or "nrmse_percent" not in df.columns:
         print("DataFrame missing required columns: file, task, nrmse_percent")
         return
 
-    # Derive cluster key from file path
     df["cluster"] = [cluster_from_relfile(rel, task) for rel, task in zip(df["file"], df["task"])]
 
-    # Detailed table: one row per cluster with circle/zigzag columns and combined mean
     pivot = df.pivot_table(index="cluster", columns="task", values="nrmse_percent", aggfunc="mean")
-    # Ensure columns exist
     if "circle" not in pivot.columns:
         pivot["circle"] = np.nan
     if "zigzag" not in pivot.columns:
         pivot["zigzag"] = np.nan
     pivot = pivot[[c for c in ["circle", "zigzag"] if c in pivot.columns]]
-    pivot = pivot.rename(columns={
-        "circle": "circle_nrmse_percent",
-        "zigzag": "zigzag_nrmse_percent",
-    })
+    pivot = pivot.rename(columns={"circle": "circle_nrmse_percent", "zigzag": "zigzag_nrmse_percent"})
     pivot["combined_mean_nrmse_percent"] = pivot.mean(axis=1, skipna=True)
 
-    # Save detailed table
     out_dir = os.path.dirname(OUT_DETAILED)
     os.makedirs(out_dir, exist_ok=True)
     pivot.reset_index().to_csv(OUT_DETAILED, index=False)
 
-    # Simple table: cluster -> percentage (combined mean)
-    simple = pivot[["combined_mean_nrmse_percent"]].rename(columns={"combined_mean_nrmse_percent": "abweichung_percent"})
+    simple = pivot[["combined_mean_nrmse_percent"]].rename(columns={"combined_mean_nrmse_percent": "deviation_percent"})
     simple = simple.reset_index()
 
-    # TOTAL rows
     total_over_entries = float(df["nrmse_percent"].mean())
-    total_over_clusters = float(simple["abweichung_percent"].mean())
+    total_over_clusters = float(simple["deviation_percent"].mean())
 
-    # Append a TOTAL row to the simple table (using cluster label 'TOTAL')
-    simple_total = pd.DataFrame([
-        {"cluster": "TOTAL (over clusters)", "abweichung_percent": total_over_clusters},
-        {"cluster": "TOTAL (over all entries)", "abweichung_percent": total_over_entries},
-    ])
+    simple_total = pd.DataFrame(
+        [
+            {"cluster": "TOTAL (over clusters)", "deviation_percent": total_over_clusters},
+            {"cluster": "TOTAL (over all entries)", "deviation_percent": total_over_entries},
+        ]
+    )
     simple_with_total = pd.concat([simple, simple_total], ignore_index=True)
     simple_with_total.to_csv(OUT_SIMPLE, index=False)
 
-    # Write a concise TXT with totals
     with open(OUT_TOTAL_TXT, "w", encoding="utf-8") as f:
         f.write(f"TOTAL over clusters (mean of cluster means): {total_over_clusters:.3f}%\n")
         f.write(f"TOTAL over all entries (mean across circle+zigzag): {total_over_entries:.3f}%\n")
@@ -359,8 +328,7 @@ def aggregate_results(df: pd.DataFrame):
     print(f"Saved simple table to {OUT_SIMPLE}")
     print(f"Saved detailed table to {OUT_DETAILED}")
     print(f"Saved totals to {OUT_TOTAL_TXT}")
-    
-    # Visualizations: heatmap (cluster x task), boxplots (by task), and bar chart (combined per cluster)
+
     try:
         _plot_heatmap(pivot, OUT_HEATMAP)
         print(f"Saved heatmap to {OUT_HEATMAP}")
@@ -377,7 +345,7 @@ def aggregate_results(df: pd.DataFrame):
     except Exception as e:
         print(f"[warn] Bar chart failed: {e}")
 
-    print(f"\n=== SUMMARY ===")
+    print("\n=== SUMMARY ===")
     print(f"Total deviation over clusters: {total_over_clusters:.3f}%")
     print(f"Total deviation over all entries: {total_over_entries:.3f}%")
 
@@ -393,7 +361,6 @@ def _shorten_labels(labels: list[str], maxlen: int = 30) -> list[str]:
 
 
 def _plot_heatmap(pivot: pd.DataFrame, out_path: str):
-    # Expect columns: circle_nrmse_percent, zigzag_nrmse_percent
     if pivot.empty:
         return
     cols = [c for c in ["circle_nrmse_percent", "zigzag_nrmse_percent"] if c in pivot.columns]
@@ -428,7 +395,6 @@ def _plot_boxplot_by_task(df: pd.DataFrame, out_path: str):
     try:
         ax.boxplot(data, tick_labels=labels, showfliers=True)
     except TypeError:
-        # Fallback for older Matplotlib versions
         ax.boxplot(data, labels=labels, showfliers=True)
     ax.set_ylabel("nRMSE [%]")
     plt.tight_layout()
@@ -439,19 +405,18 @@ def _plot_boxplot_by_task(df: pd.DataFrame, out_path: str):
 
 def _plot_bar_combined(simple_df: pd.DataFrame, out_path: str):
     d = simple_df.copy()
-    # Remove TOTAL rows
     d = d[~d["cluster"].str.startswith("TOTAL")] if "cluster" in d.columns else d
     if d.empty:
         return
-    d = d.sort_values("abweichung_percent", ascending=True)
+    d = d.sort_values("deviation_percent", ascending=True)
     labels = _shorten_labels(d["cluster"].tolist(), maxlen=38)
-    values = d["abweichung_percent"].to_numpy()
+    values = d["deviation_percent"].to_numpy()
     fig, ax = plt.subplots(figsize=(8, max(3, 0.35 * len(labels))))
     y = np.arange(len(labels))
     ax.barh(y, values, color="#1f77b4", alpha=0.85)
     ax.set_yticks(y)
     ax.set_yticklabels(labels)
-    ax.set_xlabel("Abweichung (kombinierter Mittelwert, nRMSE %)\n(circle & zigzag)")
+    ax.set_xlabel("Combined deviation (nRMSE %) for circle & zigzag")
     for i, v in enumerate(values):
         ax.text(v + 0.3, i, f"{v:.1f}%", va="center", fontsize=8)
     plt.tight_layout()
@@ -461,14 +426,13 @@ def _plot_bar_combined(simple_df: pd.DataFrame, out_path: str):
 
 
 def main():
-    """Main function that runs both analysis and aggregation."""
-    print("=== Step 10: Complete Musterverlauf Analysis ===")
+    print("=== Step 10: Pattern Reference Analysis ===")
     print("Part 1: Trajectory Analysis")
     results_df = run_analysis()
-    
+
     print("\nPart 2: Aggregation")
     aggregate_results(results_df)
-    
+
     print("\n=== Step 10 Complete ===")
 
 
